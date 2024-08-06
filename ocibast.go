@@ -93,9 +93,7 @@ func get_bastion(bastion_name string, bastion_id string, client bastion.BastionC
 	}
 }
 
-func create_session(bastion_id string, client bastion.BastionClient, target_instance string, target_ip string) bastion.CreateSessionResponse {
-	public_key_content := "ssh-rsa NOTAREALSSHKEY== dummy@test"
-
+func create_session(bastion_id string, client bastion.BastionClient, target_instance string, target_ip string, public_key_content string) bastion.CreateSessionResponse {
 	req := bastion.CreateSessionRequest{CreateSessionDetails: bastion.CreateSessionDetails{
 		BastionId:   &bastion_id,
 		DisplayName: common.String("OCIBastionSession"),
@@ -188,12 +186,17 @@ func main() {
 	bastion_id := bastions[*flagBastionName]
 	get_bastion(*flagBastionName, bastion_id, bastion_client)
 
-	target_instance := *flagInstanceId
-	target_ip := *flagInstanceIp
+	// TODO: Consider interace for SSH private key
+	public_key_content, exists := os.LookupEnv("OCI_BASTION_SSH_KEY")
+	if !exists {
+		fmt.Println("OCI_BASTION_SSH_KEY is not set. OCI_BASTION_SSH_KEY env var must be set. Exiting program...")
+		os.Exit(1)
+	}
 
-	create_session_response := create_session(bastion_id, bastion_client, target_instance, target_ip)
+	create_session_response := create_session(bastion_id, bastion_client, *flagInstanceId, *flagInstanceIp, public_key_content)
 	session_state := check_session(bastion_client, create_session_response)
 
+	// TODO: Loop until "ACTIVE"
 	if session_state != "ACTIVE" {
 		fmt.Println("\nSession not yet active...")
 		fmt.Println("State: " + session_state)
