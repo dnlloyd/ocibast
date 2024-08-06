@@ -28,3 +28,22 @@ go mod init local/ocibast
 go get -d github.com/oracle/oci-go-sdk/v65@latest
 go mod tidy
 ```
+## Build
+
+### Local
+
+```
+go build
+```
+
+### OS/Arch specific
+
+```
+GOOS=darwin GOARCH=amd64 go build -o hello-darwin-amd64
+```
+
+## Install
+
+```
+go install
+```

@@ -56,9 +56,7 @@ func get_compartment_info(tenant_id string, client identity.IdentityClient) map[
 
 	compartment_info := make(map[string]string)
 
-	// fmt.Println("\nCompartments")
 	for _, item := range response.Items {
-		// println(*item.Name)
 		compartment_info[*item.Name] = *item.Id
 	}
 
@@ -159,7 +157,7 @@ func main() {
 		fmt.Println("\nCompartments")
 
 		for compartment := range compartments {
-			println(compartment)
+			println(compartment) // TODO: these need to be sorted
 		}
 
 		os.Exit(0)
