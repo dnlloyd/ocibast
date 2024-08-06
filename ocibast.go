@@ -12,7 +12,7 @@ import (
 )
 
 func initialize_oci_clients() (identity.IdentityClient, bastion.BastionClient) {
-	config := common.DefaultConfigProvider()
+	config := common.DefaultConfigProvider() // TODO: Flex on OCI profile
 
 	identity_client, identity_err := identity.NewIdentityClientWithConfigurationProvider(config)
 	if identity_err != nil {
