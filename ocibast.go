@@ -4,7 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
+	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/bastion"
 	"github.com/oracle/oci-go-sdk/v65/common"
@@ -91,7 +93,7 @@ func get_bastion(bastion_name string, bastion_id string, client bastion.BastionC
 	}
 }
 
-func create_session(bastion_id string, client bastion.BastionClient, target_instance string, target_ip string, public_key_content string) bastion.CreateSessionResponse {
+func create_session(bastion_id string, client bastion.BastionClient, target_instance string, target_ip string, public_key_content string) *string {
 	req := bastion.CreateSessionRequest{CreateSessionDetails: bastion.CreateSessionDetails{
 		BastionId:   &bastion_id,
 		DisplayName: common.String("OCIBastionSession"),
@@ -104,23 +106,24 @@ func create_session(bastion_id string, client bastion.BastionClient, target_inst
 			TargetResourcePort:                    common.Int(22),
 			TargetResourcePrivateIpAddress:        &target_ip}}}
 
-	resp, err := client.CreateSession(context.Background(), req)
+	fmt.Println("\nCreating session...")
+	response, err := client.CreateSession(context.Background(), req)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("CreateSessionResponse")
-	fmt.Println(resp)
+	fmt.Println("\nCreateSessionResponse")
+	fmt.Println(response)
 
-	return resp
+	sessionId := response.Session.Id
+	fmt.Println("\nSession ID: ")
+	fmt.Println(*sessionId)
+
+	return sessionId
 }
 
-func check_session(client bastion.BastionClient, create_session_response bastion.CreateSessionResponse) bastion.SessionLifecycleStateEnum {
-	req := bastion.GetSessionRequest{
-		SessionId: create_session_response.Id}
-	// SessionId: common.String("ocid1.bastionsession.oc1.iad.amaaaaaaxqbllxiat7hx7v6ai5figezrcnbtqxejgyut3emegxgxexe5my7q")}
-
-	get_session_response, err := client.GetSession(context.Background(), req)
+func check_session(client bastion.BastionClient, sessionId *string) bastion.SessionLifecycleStateEnum { // TODO: TEST
+	get_session_response, err := client.GetSession(context.Background(), bastion.GetSessionRequest{SessionId: sessionId}) // TODO: TEST
 	if err != nil {
 		panic(err)
 	}
@@ -138,13 +141,14 @@ func check_session(client bastion.BastionClient, create_session_response bastion
 }
 
 func main() {
-	flagListCompartments := flag.Bool("list-compartments", false, "List compartments")
-	flagCompartmentName := flag.String("c", "", "Name of compartment")
-	flagListBastions := flag.Bool("list-bastions", false, "List bastions")
-	flagBastionName := flag.String("b", "", "Name of bastion")
+	flagListCompartments := flag.Bool("list-compartments", false, "list compartments")
+	flagCompartmentName := flag.String("c", "", "compartment name")
+	flagListBastions := flag.Bool("list-bastions", false, "list bastions")
+	flagBastionName := flag.String("b", "", "bastion name")
+	flagInstanceId := flag.String("o", "", "instance ID of host to connect to")
+	flagInstanceIp := flag.String("i", "", "instance IP address of host to connect to")
+	flagSessionId := flag.String("s", "", "Session ID to check for")
 
-	flagInstanceId := flag.String("o", "", "Instance ID of host to connect to")
-	flagInstanceIp := flag.String("i", "", "Instance IP address of host to connect to")
 	flag.Parse()
 
 	identity_client, bastion_client := initialize_oci_clients()
@@ -184,19 +188,53 @@ func main() {
 	bastion_id := bastions[*flagBastionName]
 	get_bastion(*flagBastionName, bastion_id, bastion_client)
 
-	// TODO: Consider interace for SSH private key
+	// TODO: Consider interface for SSH private key
 	public_key_content, exists := os.LookupEnv("OCI_BASTION_SSH_KEY")
 	if !exists {
 		fmt.Println("OCI_BASTION_SSH_KEY is not set. OCI_BASTION_SSH_KEY env var must be set. Exiting program...")
 		os.Exit(1)
 	}
 
-	create_session_response := create_session(bastion_id, bastion_client, *flagInstanceId, *flagInstanceIp, public_key_content)
-	session_state := check_session(bastion_client, create_session_response)
+	var sessionId *string
+	if *flagSessionId == "" {
+		sessionId = create_session(bastion_id, bastion_client, *flagInstanceId, *flagInstanceIp, public_key_content)
+	} else {
+		fmt.Println("Session ID passed, checking session...")
+		sessionId = flagSessionId
+		session_state := check_session(bastion_client, sessionId)
+		fmt.Println(session_state)
 
-	// TODO: Loop until "ACTIVE"
-	if session_state != "ACTIVE" {
-		fmt.Println("\nSession not yet active...")
-		fmt.Println("State: " + session_state)
+		if session_state == "ACTIVE" {
+			printSshCommand(bastion_client, sessionId, flagInstanceIp)
+		}
+
+		os.Exit(0)
 	}
+
+	session_state := check_session(bastion_client, sessionId)
+
+	for session_state != "ACTIVE" {
+		fmt.Println("\nSession not yet active")
+		fmt.Println("State: " + session_state)
+		fmt.Println("\nWaiting...")
+		time.Sleep(10 * time.Second)
+		session_state = check_session(bastion_client, sessionId)
+		// session_state = check_session(bastion_client, sessionId) // TODO: TEST
+	}
+
+	printSshCommand(bastion_client, sessionId, flagInstanceIp)
+}
+
+func printSshCommand(bastion_client bastion.BastionClient, sessionId *string, flagInstanceIp *string) {
+	bastion_endpoint_url, err := url.Parse(bastion_client.Endpoint())
+	if err != nil {
+		panic(err)
+	}
+
+	sessionIdStr := *sessionId
+	jumpbox := sessionIdStr + "@host." + bastion_endpoint_url.Host
+
+	fmt.Println("\nssh -i \"<private key file>\" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\")
+	fmt.Println("-o ProxyCommand='ssh -i \"<private key file>\" -W %h:%p -p 22 " + jumpbox + "' \\")
+	fmt.Println("-P 22 cloud-user@" + *flagInstanceIp)
 }
