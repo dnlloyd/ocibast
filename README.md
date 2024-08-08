@@ -123,8 +123,9 @@ GOOS=darwin GOARCH=amd64 go build -o hello-darwin-amd64
 go install
 ```
 
-## Future enhancements
+## Future enhancements and updates
 
+- Add tests!
 - Manage SSH client
   - https://pkg.go.dev/golang.org/x/crypto/ssh
 - Manage SSH keys
