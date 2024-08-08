@@ -95,7 +95,7 @@ Usage of ocibast:
 https://go.dev/doc/effective_go
 
 ```
-go mod init local/ocibast
+go mod init github.com/dnlloyd/ocibast
 ```
 
 ```

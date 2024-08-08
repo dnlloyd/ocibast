@@ -1,8 +1,8 @@
-module local/ocibast
+module github.com/dnlloyd/ocibast
 
 go 1.22.5
 
-require github.com/oracle/oci-go-sdk/v65 v65.70.0
+require github.com/oracle/oci-go-sdk/v65 v65.71.0
 
 require (
 	github.com/gofrs/flock v0.8.1 // indirect
