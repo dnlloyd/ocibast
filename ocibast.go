@@ -25,18 +25,20 @@ type SessionInfo struct {
 	port  int
 }
 
+func checkError(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func initializeOciClients() (identity.IdentityClient, bastion.BastionClient) {
 	config := common.DefaultConfigProvider() // TODO: Flex on OCI profile
 
 	identityClient, identityErr := identity.NewIdentityClientWithConfigurationProvider(config)
-	if identityErr != nil {
-		panic(identityErr)
-	}
+	checkError(identityErr)
 
 	bastionClient, err := bastion.NewBastionClientWithConfigurationProvider(config)
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 
 	return identityClient, bastionClient
 }
@@ -55,18 +57,14 @@ func checkTenancy(client identity.IdentityClient) string {
 
 func printTenancyName(tenantId string, client identity.IdentityClient) {
 	response, err := client.GetTenancy(context.Background(), identity.GetTenancyRequest{TenancyId: &tenantId})
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 
 	fmt.Println("\nCurrent tenant: " + *response.Tenancy.Name)
 }
 
 func getCompartmentInfo(tenantId string, client identity.IdentityClient) map[string]string {
 	response, err := client.ListCompartments(context.Background(), identity.ListCompartmentsRequest{CompartmentId: &tenantId})
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 
 	compartmentInfo := make(map[string]string)
 
@@ -79,9 +77,7 @@ func getCompartmentInfo(tenantId string, client identity.IdentityClient) map[str
 
 func getBastionInfo(compartmentId string, client bastion.BastionClient) map[string]string {
 	response, err := client.ListBastions(context.Background(), bastion.ListBastionsRequest{CompartmentId: &compartmentId})
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 
 	bastionInfo := make(map[string]string)
 
@@ -98,9 +94,22 @@ func getBastion(bastionName string, bastionId string, client bastion.BastionClie
 	}
 
 	_, err := client.GetBastion(context.Background(), bastion.GetBastionRequest{BastionId: &bastionId})
-	if err != nil {
-		panic(err)
+	checkError(err)
+}
+
+func getSshPubKeyContents(sshPrivateKeyFileLocation string) string {
+	homeDir, err := os.UserHomeDir()
+	checkError(err)
+
+	if sshPrivateKeyFileLocation == "" {
+		sshPrivateKeyFileLocation = homeDir + "/.ssh/id_rsa"
+		fmt.Println("\nUsing default SSH identity file at " + sshPrivateKeyFileLocation)
 	}
+
+	sshKeyContents, err := os.ReadFile(sshPrivateKeyFileLocation)
+	checkError(err)
+
+	return string(sshKeyContents)
 }
 
 func createSession(bastionId string, client bastion.BastionClient, targetInstance string, targetIp string, publicKeyContent string, sshUser string, sshPort int) *string {
@@ -121,9 +130,7 @@ func createSession(bastionId string, client bastion.BastionClient, targetInstanc
 
 	fmt.Println("\nCreating session...")
 	response, err := client.CreateSession(context.Background(), req)
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 
 	if logLevel == "DEBUG" {
 		fmt.Println("\nCreateSessionResponse")
@@ -139,9 +146,7 @@ func createSession(bastionId string, client bastion.BastionClient, targetInstanc
 
 func checkSession(client bastion.BastionClient, sessionId *string) SessionInfo {
 	response, err := client.GetSession(context.Background(), bastion.GetSessionRequest{SessionId: sessionId})
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 
 	if logLevel == "DEBUG" {
 		fmt.Println("GetSessionResponse")
@@ -161,18 +166,39 @@ func checkSession(client bastion.BastionClient, sessionId *string) SessionInfo {
 	return currentSessionInfo
 }
 
-func printSshCommand(client bastion.BastionClient, sessionId *string, instanceIp *string, sshUser *string, sshPort *int) {
-	bastionEndpointUrl, err := url.Parse(client.Endpoint())
-	if err != nil {
-		panic(err)
+func listActiveSessions(client bastion.BastionClient, bastionId string) {
+	response, err := client.ListSessions(context.Background(), bastion.ListSessionsRequest{BastionId: &bastionId})
+	checkError(err)
+
+	fmt.Println("\nActive bastion sessions")
+	for _, session := range response.Items {
+		sshSessionTargetResourceDetails := session.TargetResourceDetails.(bastion.ManagedSshSessionTargetResourceDetails)
+		instanceName := sshSessionTargetResourceDetails.TargetResourceDisplayName
+		ipAddress := sshSessionTargetResourceDetails.TargetResourcePrivateIpAddress
+		instanceID := sshSessionTargetResourceDetails.TargetResourceId
+
+		if session.LifecycleState == "ACTIVE" {
+			fmt.Println(*session.DisplayName)
+			fmt.Println(*session.Id)
+			fmt.Println(*session.TimeCreated)
+			fmt.Println(*instanceName)
+			fmt.Println(*ipAddress)
+			fmt.Println(*instanceID)
+			fmt.Println("")
+		}
 	}
+}
+
+func printSshCommand(client bastion.BastionClient, sessionId *string, instanceIp *string, sshUser *string, sshPort *int, sshIdentityFile string) {
+	bastionEndpointUrl, err := url.Parse(client.Endpoint())
+	checkError(err)
 
 	sessionIdStr := *sessionId
 	bastionHost := sessionIdStr + "@host." + bastionEndpointUrl.Host
 
-	fmt.Println("\nssh -i \"<private key file>\" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\")
-	fmt.Println("-o ProxyCommand='ssh -i \"<private key file>\" -W %h:%p -p 22 " + bastionHost + "' \\")
-	fmt.Println("-P " + strconv.Itoa(*sshPort) + " " + *sshUser + "@" + *instanceIp) // TODO: add vars for user and port
+	fmt.Println("\nssh -i " + sshIdentityFile + " -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\")
+	fmt.Println("-o ProxyCommand='ssh -i " + sshIdentityFile + " -W %h:%p -p 22 " + bastionHost + "' \\")
+	fmt.Println("-P " + strconv.Itoa(*sshPort) + " " + *sshUser + "@" + *instanceIp)
 }
 
 func main() {
@@ -183,8 +209,11 @@ func main() {
 	flagInstanceId := flag.String("o", "", "instance ID of host to connect to")
 	flagInstanceIp := flag.String("i", "", "instance IP address of host to connect to")
 	flagSessionId := flag.String("s", "", "Session ID to check for")
+	flagListSessions := flag.Bool("list-sessions", false, "list sessions")
 	flagSshUser := flag.String("u", "cloud-user", "SSH user")
-	flagSshPort := flag.Int("p", 22, "SSH user")
+	flagSshPort := flag.Int("p", 22, "SSH port")
+	flagSshPrivateKey := flag.String("k", "", "path to SSH private key (identity file)")
+	flagSshPublicKey := flag.String("e", "", "path to SSH public key")
 	flag.Parse()
 
 	identityClient, bastionClient := initializeOciClients()
@@ -226,12 +255,12 @@ func main() {
 	bastionId := bastions[*flagBastionName]
 	getBastion(*flagBastionName, bastionId, bastionClient)
 
-	// TODO: implement interface for SSH private key
-	publicKeyContent, exists := os.LookupEnv("OCI_BASTION_SSH_KEY")
-	if !exists {
-		fmt.Println("OCI_BASTION_SSH_KEY is not set. OCI_BASTION_SSH_KEY env var must be set. Exiting program...")
-		os.Exit(1)
+	if *flagListSessions {
+		listActiveSessions(bastionClient, bastionId)
+		os.Exit(0)
 	}
+
+	publicKeyContent := getSshPubKeyContents(*flagSshPublicKey)
 
 	var sessionId *string
 	if *flagSessionId == "" {
@@ -244,7 +273,7 @@ func main() {
 		sessionInfo := checkSession(bastionClient, sessionId)
 
 		if sessionInfo.state == "ACTIVE" {
-			printSshCommand(bastionClient, sessionId, &sessionInfo.ip, &sessionInfo.user, &sessionInfo.port)
+			printSshCommand(bastionClient, sessionId, &sessionInfo.ip, &sessionInfo.user, &sessionInfo.port, *flagSshPrivateKey)
 		} else {
 			fmt.Println("Session is no longer active. Current state is: " + sessionInfo.state)
 		}
@@ -262,5 +291,13 @@ func main() {
 		sessionInfo = checkSession(bastionClient, sessionId)
 	}
 
-	printSshCommand(bastionClient, sessionId, flagInstanceIp, flagSshUser, flagSshPort)
+	homeDir, err := os.UserHomeDir()
+	checkError(err)
+
+	if *flagSshPrivateKey == "" {
+		sshPublicKeyFileLocation := homeDir + "/.ssh/id_rsa.pub"
+		fmt.Println("\nUsing default SSH public key file at " + sshPublicKeyFileLocation)
+	}
+
+	printSshCommand(bastionClient, sessionId, flagInstanceIp, flagSshUser, flagSshPort, *flagSshPrivateKey)
 }
