@@ -1,7 +1,9 @@
 # ocibast
 A tool for creating OCI bastion sessions and connecting to instances.
 
-Note: SSH connections are not yet supported in this version. Until SSH client support is added, SSH commands are generated and printed. See `Future enhancements` section below.
+Note: 
+- SSH connections are not yet supported in this version. Until SSH client support is added, SSH commands are generated and printed. See `Future enhancements` section below.
+- Current version supports only the default OCI profile for auth
 
 ## Download
 
