@@ -1,7 +1,7 @@
 # oci-bastion-client
 A tool for creating OCI bastion sessions and connecting to instances.
 
-Note: SSH connections are not yet supported in this version. The SSH commands are created until SSH client support is added. See `Future enhancements` section below.
+Note: SSH connections are not yet supported in this version. Until SSH client support is added, SSH commands are generated and printed. See `Future enhancements` section below.
 
 ## Usage
 
@@ -65,17 +65,29 @@ ocibast -h
 ```
 Usage of ocibast:
   -b string
-    	Name of bastion
+    	bastion name
   -c string
-    	Name of compartment
+    	compartment name
+  -e string
+    	path to SSH public key
   -i string
-    	Instance IP address of host to connect to
+    	instance IP address of host to connect to
+  -k string
+    	path to SSH private key (identity file)
   -list-bastions
-    	List bastions
+    	list bastions
   -list-compartments
-    	List compartments
+    	list compartments
+  -list-sessions
+    	list sessions
   -o string
-    	Instance ID of host to connect to
+    	instance ID of host to connect to
+  -p int
+    	SSH port (default 22)
+  -s string
+    	Session ID to check for
+  -u string
+    	SSH user (default "cloud-user)
 ```
 
 ## Contribute
@@ -91,21 +103,21 @@ go get -d github.com/oracle/oci-go-sdk/v65@latest
 go mod tidy
 ```
 
-## Build
+### Build
 
-### Local OS/Arch
+#### Local OS/Arch
 
 ```
 go build
 ```
 
-### OS/Arch specific
+#### OS/Arch specific
 
 ```
 GOOS=darwin GOARCH=amd64 go build -o hello-darwin-amd64
 ```
 
-## Install
+### Local install
 
 ```
 go install
