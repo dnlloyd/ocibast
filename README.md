@@ -1,7 +1,11 @@
-# oci-bastion-client
+# ocibast
 A tool for creating OCI bastion sessions and connecting to instances.
 
 Note: SSH connections are not yet supported in this version. Until SSH client support is added, SSH commands are generated and printed. See `Future enhancements` section below.
+
+## Download
+
+https://www.daniel-lloyd.net/ocibast/index.html
 
 ## Usage
 
@@ -114,7 +118,12 @@ go build
 #### OS/Arch specific
 
 ```
-GOOS=darwin GOARCH=amd64 go build -o hello-darwin-amd64
+GOOS=darwin GOARCH=amd64 go build -o executables/mac/intel/ocibast
+GOOS=darwin GOARCH=arm64 go build -o executables/mac/arm/ocibast
+GOOS=windows GOARCH=amd64 go build -o executables/windows/intel/ocibast
+GOOS=windows GOARCH=arm64 go build -o executables/windows/arm/ocibast
+GOOS=linux GOARCH=amd64 go build -o executables/linux/intel/ocibast
+GOOS=linux GOARCH=arm64 go build -o executables/linux/arm/ocibast
 ```
 
 ### Local install
