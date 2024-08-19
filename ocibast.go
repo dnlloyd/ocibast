@@ -218,8 +218,8 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
 		flag.PrintDefaults()
 
-		fmt.Println("\nCommon command patterns")
-		fmt.Println("\nList compartments")
+		fmt.Println("\nCommon command patterns:")
+		fmt.Println("List compartments")
 		fmt.Println("   ocibast -list-compartments")
 		fmt.Println("\nList bastions")
 		fmt.Println("   ocibast -c compartment_name -list-bastions")
@@ -229,6 +229,11 @@ func main() {
 		fmt.Println("   ocibast -c mycompartment -b mybastion -list-sessions")
 		fmt.Println("\nConnect to an active session")
 		fmt.Println("   ocibast -c compartment_name -b bastion_name -k path_to_ssh_private_key -e path_to_ssh_public_key -s session_ocd")
+
+		fmt.Println("\nEnvironment variables:")
+		fmt.Println("The following environment variables will override their flag counterparts")
+		fmt.Println("   OCI_CLI_TENANCY")
+		fmt.Println("   OCI_COMPARTMENT_NAME")
 	}
 
 	flag.Parse()
@@ -246,7 +251,7 @@ func main() {
 			tenantId = *flagTenancyId
 		}
 	} else {
-		fmt.Println("/nTenancy ID is set via OCI_CLI_TENANCY to: " + tenantId)
+		fmt.Println("\nTenancy ID is set via OCI_CLI_TENANCY to: " + tenantId)
 	}
 
 	checkTenancy(tenantId, identityClient)
