@@ -215,8 +215,14 @@ func main() {
 
 	// Extend flag's default usage function
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
-		flag.PrintDefaults()
+		fmt.Println("\nEnvironment variables:")
+		fmt.Println("The following environment variables will override their flag counterparts")
+		fmt.Println("   OCI_CLI_TENANCY")
+		fmt.Println("   OCI_COMPARTMENT_NAME")
+
+		fmt.Println("\nDefaults:")
+		fmt.Println("   SSH private key (-k): $HOME/.ssh/id_rsa")
+		fmt.Println("   SSH public key (-e): $HOME/.ssh/id_rsa.pub")
 
 		fmt.Println("\nCommon command patterns:")
 		fmt.Println("List compartments")
@@ -224,16 +230,21 @@ func main() {
 		fmt.Println("\nList bastions")
 		fmt.Println("   ocibast -c compartment_name -list-bastions")
 		fmt.Println("\nCreate bastion session")
-		fmt.Println("   ocibast -c compartment_name -b bastion_name -i ip_address -o instance_id -k path_to_ssh_private_key -e path_to_ssh_public_key")
+		fmt.Println("   ocibast -b bastion_name -i ip_address -o instance_id")
+		fmt.Println("\nCreate bastion session (long)")
+		fmt.Println("   ocibast -t tenant_id -c compartment_name -b bastion_name -i ip_address -o instance_id -k path_to_ssh_private_key -e path_to_ssh_public_key")
 		fmt.Println("\nList active sessions")
 		fmt.Println("   ocibast -c mycompartment -b mybastion -list-sessions")
 		fmt.Println("\nConnect to an active session")
 		fmt.Println("   ocibast -c compartment_name -b bastion_name -k path_to_ssh_private_key -e path_to_ssh_public_key -s session_ocd")
 
-		fmt.Println("\nEnvironment variables:")
-		fmt.Println("The following environment variables will override their flag counterparts")
-		fmt.Println("   OCI_CLI_TENANCY")
-		fmt.Println("   OCI_COMPARTMENT_NAME")
+		fmt.Println("\nExample of bastion session creation:")
+		fmt.Println("   export OCI_CLI_TENANCY=ocid1.tenancy.oc1..aaaaaaaaabcdefghijklmnopqrstuvwxyz")
+		fmt.Println("   export OCI_COMPARTMENT_NAME=mycompartment")
+		fmt.Println("   ocibast -b mybastion -i 10.0.0.123 -o ocid1.instance.oc1.iad.abcdefg")
+		fmt.Fprintf(flag.CommandLine.Output(), "\nAll flags for %s:\n", os.Args[0])
+
+		flag.PrintDefaults()
 	}
 
 	flag.Parse()
@@ -251,7 +262,9 @@ func main() {
 			tenantId = *flagTenancyId
 		}
 	} else {
-		fmt.Println("\nTenancy ID is set via OCI_CLI_TENANCY to: " + tenantId)
+		if logLevel == "DEBUG" {
+			fmt.Println("\nTenancy ID is set via OCI_CLI_TENANCY to: " + tenantId)
+		}
 	}
 
 	checkTenancy(tenantId, identityClient)
@@ -273,7 +286,9 @@ func main() {
 	compartmentIdEnv, exists := os.LookupEnv("OCI_COMPARTMENT_NAME")
 	if exists {
 		compartmentName = compartmentIdEnv
-		fmt.Println("Compartment name is set via OCI_COMPARTMENT_NAME to: " + compartmentName)
+		if logLevel == "DEBUG" {
+			fmt.Println("Compartment name is set via OCI_COMPARTMENT_NAME to: " + compartmentName)
+		}
 	} else if *flagCompartmentName == "" {
 		fmt.Println("Must pass compartment name with -c or set with environment variable OCI_COMPARTMENT_NAME")
 		os.Exit(1)
@@ -309,16 +324,22 @@ func main() {
 
 	var sshPrivateKeyFileLocation string
 	if *flagSshPrivateKey == "" {
+		// TODO: move this default to flags
 		sshPrivateKeyFileLocation = homeDir + "/.ssh/id_rsa"
-		fmt.Println("Using default SSH private key file at " + sshPrivateKeyFileLocation)
+		if logLevel == "DEBUG" {
+			fmt.Println("Using default SSH private key file at " + sshPrivateKeyFileLocation)
+		}
 	} else {
 		sshPrivateKeyFileLocation = *flagSshPrivateKey
 	}
 
 	var sshPublicKeyFileLocation string
 	if *flagSshPublicKey == "" {
+		// TODO: move this default to flags
 		sshPublicKeyFileLocation = homeDir + "/.ssh/id_rsa.pub"
-		fmt.Println("\nUsing default SSH public key file at " + sshPublicKeyFileLocation)
+		if logLevel == "DEBUG" {
+			fmt.Println("\nUsing default SSH public key file at " + sshPublicKeyFileLocation)
+		}
 	} else {
 		sshPublicKeyFileLocation = *flagSshPublicKey
 	}
