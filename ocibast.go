@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -32,7 +33,26 @@ func checkError(err error) {
 }
 
 func initializeOciClients() (identity.IdentityClient, bastion.BastionClient) {
-	config := common.DefaultConfigProvider() // TODO: Flex on OCI profile
+	var config common.ConfigurationProvider
+
+	profile, exists := os.LookupEnv("OCI_CLI_PROFILE")
+
+	if exists {
+		if logLevel == "DEBUG" {
+			fmt.Println("Using profile " + profile)
+		}
+		homeDir, err := os.UserHomeDir()
+		checkError(err)
+
+		configPath := homeDir + "/.oci/config"
+
+		config = common.CustomProfileConfigProvider(configPath, profile)
+	} else {
+		if logLevel == "DEBUG" {
+			fmt.Println("Using default profile")
+		}
+		config = common.DefaultConfigProvider()
+	}
 
 	identityClient, identityErr := identity.NewIdentityClientWithConfigurationProvider(config)
 	checkError(identityErr)
@@ -63,6 +83,22 @@ func getCompartmentInfo(tenantId string, client identity.IdentityClient) map[str
 	}
 
 	return compartmentInfo
+}
+
+func listCompartmentNames(compartmentInfo map[string]string) {
+	fmt.Println("\nCOMPARTMENTS:")
+
+	compartmentNames := make([]string, 0, len(compartmentInfo))
+	for compartmentName := range compartmentInfo {
+		compartmentNames = append(compartmentNames, compartmentName)
+	}
+	sort.Strings(compartmentNames)
+
+	for _, compartmentName := range compartmentNames {
+		println(compartmentName)
+	}
+
+	os.Exit(0)
 }
 
 func getBastionInfo(compartmentId string, client bastion.BastionClient) map[string]string {
@@ -200,14 +236,14 @@ func printSshCommands(client bastion.BastionClient, sessionId *string, instanceI
 
 func main() {
 	flagTenancyId := flag.String("t", "", "tenancy ID name")
-	flagListCompartments := flag.Bool("list-compartments", false, "list compartments")
+	flagListCompartments := flag.Bool("lc", false, "list compartments")
 	flagCompartmentName := flag.String("c", "", "compartment name")
-	flagListBastions := flag.Bool("list-bastions", false, "list bastions")
+	flagListBastions := flag.Bool("lb", false, "list bastions")
 	flagBastionName := flag.String("b", "", "bastion name")
 	flagInstanceId := flag.String("o", "", "instance ID of host to connect to")
 	flagInstanceIp := flag.String("i", "", "instance IP address of host to connect to")
 	flagSessionId := flag.String("s", "", "Session ID to check for")
-	flagListSessions := flag.Bool("list-sessions", false, "list sessions")
+	flagListSessions := flag.Bool("ls", false, "list sessions")
 	flagSshUser := flag.String("u", "opc", "SSH user")
 	flagSshPort := flag.Int("p", 22, "SSH port")
 	flagSshPrivateKey := flag.String("k", "", "path to SSH private key (identity file)")
@@ -215,6 +251,11 @@ func main() {
 
 	// Extend flag's default usage function
 	flag.Usage = func() {
+		fmt.Println("OCI authentication:")
+		fmt.Println("This tool will use the credentials set in $HOME/.oci/config")
+		fmt.Println("This tool will use the profile set by the OCI_CLI_PROFILE environment variable")
+		fmt.Println("If the OCI_CLI_PROFILE environment variable is not set it will use the DEFAULT profile")
+
 		fmt.Println("\nEnvironment variables:")
 		fmt.Println("The following environment variables will override their flag counterparts")
 		fmt.Println("   OCI_CLI_TENANCY")
@@ -272,13 +313,7 @@ func main() {
 	compartmentInfo := getCompartmentInfo(tenantId, identityClient)
 
 	if *flagListCompartments {
-		fmt.Println("\nCompartments")
-
-		for compartment := range compartmentInfo {
-			println(compartment) // TODO: these need to be sorted
-		}
-
-		os.Exit(0)
+		listCompartmentNames(compartmentInfo)
 	}
 
 	// Anything past this point requires a compartment

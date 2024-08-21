@@ -11,12 +11,24 @@ https://www.daniel-lloyd.net/ocibast/index.html
 
 ## Usage
 
+### Environment variables
+
+The following environment variables will override their flag counterparts
+- `OCI_CLI_TENANCY`
+- `OCI_COMPARTMENT_NAME`
+
+### OCI Auth
+
+This tool will use the credentials set in `$HOME/.oci/config`
+This tool will use the profile set by the `OCI_CLI_PROFILE` environment variable
+If the `OCI_CLI_PROFILE` environment variable is not set it will use the DEFAULT profile
+
 ### List compartments
 
 Many commands require a compartment flag so this is useful for finding available compartments
 
 ```
-ocibast -list-compartments
+ocibast -lc
 ```
 
 ### List bastions
@@ -24,7 +36,7 @@ ocibast -list-compartments
 List available bastions for a compartment
 
 ```
-ocibast -c compartment_name -list-bastions
+ocibast -c compartment_name -lb
 ```
 
 ### Create bastion session
@@ -62,13 +74,18 @@ example
 ocibast -c mycompartment -b mybastion -s ocid1.bastionsession.oc1.iad.abcdefghitjlmnopqrstuvwxyz
 ```
 
-### Help
+### Help (all options)
 
 ```
 ocibast -h
 ```
 
 ```
+OCI authentication:
+This tool will use the credentials set in $HOME/.oci/config
+This tool will use the profile set by the OCI_CLI_PROFILE environment variable
+If the OCI_CLI_PROFILE environment variable is not set it will use the DEFAULT profile
+
 Environment variables:
 The following environment variables will override their flag counterparts
    OCI_CLI_TENANCY
@@ -113,11 +130,11 @@ All flags for ocibast:
     	instance IP address of host to connect to
   -k string
     	path to SSH private key (identity file)
-  -list-bastions
+  -lb
     	list bastions
-  -list-compartments
+  -lc
     	list compartments
-  -list-sessions
+  -ls
     	list sessions
   -o string
     	instance ID of host to connect to
@@ -172,7 +189,6 @@ go install
 ## Future enhancements and updates
 
 - Add tests!
-- Handle multiple OCI auth patterns
 - Support more OCI environment variables
 - Manage SSH client
   - https://pkg.go.dev/golang.org/x/crypto/ssh
