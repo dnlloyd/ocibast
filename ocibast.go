@@ -15,7 +15,7 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/identity"
 )
 
-const logLevel = "DEBUG"
+const logLevel = "DEBUG" // TODO: allow setting log level via env var
 
 type SessionInfo struct {
 	state bastion.SessionLifecycleStateEnum
@@ -30,6 +30,13 @@ func checkError(err error) {
 	}
 }
 
+func getHomeDir() string {
+	homeDir, err := os.UserHomeDir()
+	checkError(err)
+
+	return homeDir
+}
+
 func initializeOciClients() (identity.IdentityClient, bastion.BastionClient) {
 	var config common.ConfigurationProvider
 
@@ -39,9 +46,8 @@ func initializeOciClients() (identity.IdentityClient, bastion.BastionClient) {
 		if logLevel == "DEBUG" {
 			fmt.Println("Using profile " + profile)
 		}
-		homeDir, err := os.UserHomeDir()
-		checkError(err)
 
+		homeDir := getHomeDir()
 		configPath := homeDir + "/.oci/config"
 
 		config = common.CustomProfileConfigProvider(configPath, profile)
@@ -87,7 +93,35 @@ func listCompartmentNames(compartmentInfo map[string]string) {
 		println(compartmentName)
 	}
 
-	os.Exit(0)
+	fmt.Println("\nTo set compartment, you can export OCI_COMPARTMENT_NAME:")
+	fmt.Println("   export OCI_COMPARTMENT_NAME=")
+}
+
+func getCompartmentName(flagCompartmentName string) string {
+	var compartmentName string
+	compartmentIdEnv, exists := os.LookupEnv("OCI_COMPARTMENT_NAME")
+	if exists {
+		compartmentName = compartmentIdEnv
+		if logLevel == "DEBUG" {
+			fmt.Println("Compartment name is set via OCI_COMPARTMENT_NAME to: " + compartmentName)
+		}
+	} else if flagCompartmentName == "" {
+		fmt.Println("Must pass compartment name with -c or set with environment variable OCI_COMPARTMENT_NAME")
+		os.Exit(1)
+	} else {
+		compartmentName = flagCompartmentName
+	}
+
+	return compartmentName
+}
+
+func getCompartmentId(compartmentInfo map[string]string, compartmentName string) string {
+	compartmentId := compartmentInfo[compartmentName]
+	if logLevel == "DEBUG" {
+		fmt.Println("\n" + compartmentName + "'s compartment ID is " + compartmentId)
+	}
+
+	return compartmentId
 }
 
 func getBastionInfo(compartmentId string, client bastion.BastionClient) map[string]string {
@@ -103,6 +137,13 @@ func getBastionInfo(compartmentId string, client bastion.BastionClient) map[stri
 	return bastionInfo
 }
 
+func listBastions(compartmentName string, bastionInfo map[string]string) {
+	fmt.Println("\nBastions in compartment " + compartmentName)
+	for bastionName := range bastionInfo {
+		fmt.Println(bastionName)
+	}
+}
+
 func getBastion(bastionName string, bastionId string, client bastion.BastionClient) {
 	if logLevel == "DEBUG" {
 		fmt.Println("\nGetting bastion for: " + bastionName + " (" + bastionId + ")")
@@ -113,8 +154,7 @@ func getBastion(bastionName string, bastionId string, client bastion.BastionClie
 }
 
 func getSshPubKeyContents(sshPrivateKeyFileLocation string) string {
-	homeDir, err := os.UserHomeDir()
-	checkError(err)
+	homeDir := getHomeDir()
 
 	if sshPrivateKeyFileLocation == "" {
 		sshPrivateKeyFileLocation = homeDir + "/.ssh/id_rsa"
@@ -308,41 +348,26 @@ func main() {
 	tenancyId := getTenancyId(*flagTenancyId, identityClient)
 	compartmentInfo := getCompartmentInfo(tenancyId, identityClient)
 
-	if *flagListCompartments {
+	// Using switch in preparation to convert main flow to individual directives
+	// Will eventually switch on 1st argument: e.g. 'list' (not on flags)
+	switch *flagListCompartments {
+	case true:
 		listCompartmentNames(compartmentInfo)
-	}
-
-	// Anything past this point requires a compartment
-	var compartmentName string
-	compartmentIdEnv, exists := os.LookupEnv("OCI_COMPARTMENT_NAME")
-	if exists {
-		compartmentName = compartmentIdEnv
-		if logLevel == "DEBUG" {
-			fmt.Println("Compartment name is set via OCI_COMPARTMENT_NAME to: " + compartmentName)
-		}
-	} else if *flagCompartmentName == "" {
-		fmt.Println("Must pass compartment name with -c or set with environment variable OCI_COMPARTMENT_NAME")
-		os.Exit(1)
-	} else {
-		compartmentName = *flagCompartmentName
-	}
-
-	compartmentId := compartmentInfo[compartmentName]
-	if logLevel == "DEBUG" {
-		fmt.Println("\n" + compartmentName + "'s compartment ID is " + compartmentId)
-	}
-
-	bastions := getBastionInfo(compartmentId, bastionClient)
-	if *flagListBastions {
-		fmt.Println("\nBastions in compartment " + compartmentName)
-		for bastionName := range bastions {
-			fmt.Println(bastionName)
-		}
-
 		os.Exit(0)
 	}
 
-	bastionId := bastions[*flagBastionName]
+	// Anything past this point requires a compartment and bastion info
+	compartmentName := getCompartmentName(*flagCompartmentName)
+	compartmentId := getCompartmentId(compartmentInfo, compartmentName)
+	bastionInfo := getBastionInfo(compartmentId, bastionClient)
+
+	if *flagListBastions {
+		listBastions(compartmentName, bastionInfo)
+		os.Exit(0)
+	}
+
+	// Anything past this point requires a bastion
+	bastionId := bastionInfo[*flagBastionName]
 	getBastion(*flagBastionName, bastionId, bastionClient)
 
 	if *flagListSessions {
@@ -350,8 +375,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	homeDir, err := os.UserHomeDir()
-	checkError(err)
+	homeDir := getHomeDir()
 
 	var sshPrivateKeyFileLocation string
 	if *flagSshPrivateKey == "" {
