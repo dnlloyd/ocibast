@@ -1,5 +1,3 @@
-// TODOs:
-//   - TODO: 2. Convert session and bastion to objects
 package main
 
 import (
@@ -17,7 +15,7 @@ import (
 	"github.com/oracle/oci-go-sdk/v65/identity"
 )
 
-const logLevel = "INFO"
+const logLevel = "DEBUG"
 
 type SessionInfo struct {
 	state bastion.SessionLifecycleStateEnum
@@ -63,17 +61,8 @@ func initializeOciClients() (identity.IdentityClient, bastion.BastionClient) {
 	return identityClient, bastionClient
 }
 
-func checkTenancy(tenantId string, client identity.IdentityClient) {
-	response, err := client.GetTenancy(context.Background(), identity.GetTenancyRequest{TenancyId: &tenantId})
-	checkError(err)
-
-	if logLevel == "DEBUG" {
-		fmt.Println("\nCurrent tenant: " + *response.Tenancy.Name)
-	}
-}
-
-func getCompartmentInfo(tenantId string, client identity.IdentityClient) map[string]string {
-	response, err := client.ListCompartments(context.Background(), identity.ListCompartmentsRequest{CompartmentId: &tenantId})
+func getCompartmentInfo(tenancyId string, client identity.IdentityClient) map[string]string {
+	response, err := client.ListCompartments(context.Background(), identity.ListCompartmentsRequest{CompartmentId: &tenancyId})
 	checkError(err)
 
 	compartmentInfo := make(map[string]string)
@@ -234,6 +223,30 @@ func printSshCommands(client bastion.BastionClient, sessionId *string, instanceI
 	fmt.Println("-P " + strconv.Itoa(*sshPort) + " " + *sshUser + "@" + *instanceIp)
 }
 
+func getTenancyId(tenancyIdFlag string, client identity.IdentityClient) string {
+	tenancyId, exists := os.LookupEnv("OCI_CLI_TENANCY")
+	if !exists {
+		if tenancyIdFlag == "" {
+			fmt.Println("Must pass tenancy ID with -t or set with environment variable OCI_CLI_TENANCY")
+			os.Exit(1)
+		}
+	} else {
+		if logLevel == "DEBUG" {
+			fmt.Println("\nTenancy ID is set via OCI_CLI_TENANCY to: " + tenancyId)
+		}
+	}
+
+	// Validate tenancy ID
+	response, err := client.GetTenancy(context.Background(), identity.GetTenancyRequest{TenancyId: &tenancyId})
+	checkError(err)
+
+	if logLevel == "DEBUG" {
+		fmt.Println("\nCurrent tenant: " + *response.Tenancy.Name)
+	}
+
+	return tenancyId
+}
+
 func main() {
 	flagTenancyId := flag.String("t", "", "tenancy ID name")
 	flagListCompartments := flag.Bool("lc", false, "list compartments")
@@ -292,25 +305,8 @@ func main() {
 
 	identityClient, bastionClient := initializeOciClients()
 
-	// Tenancy ID is requred for anything past this point
-	var tenantId string
-	tenantId, exists := os.LookupEnv("OCI_CLI_TENANCY")
-	if !exists {
-		if *flagTenancyId == "" {
-			fmt.Println("Must pass tenancy ID with -t or set with environment variable OCI_CLI_TENANCY")
-			os.Exit(1)
-		} else {
-			tenantId = *flagTenancyId
-		}
-	} else {
-		if logLevel == "DEBUG" {
-			fmt.Println("\nTenancy ID is set via OCI_CLI_TENANCY to: " + tenantId)
-		}
-	}
-
-	checkTenancy(tenantId, identityClient)
-
-	compartmentInfo := getCompartmentInfo(tenantId, identityClient)
+	tenancyId := getTenancyId(*flagTenancyId, identityClient)
+	compartmentInfo := getCompartmentInfo(tenancyId, identityClient)
 
 	if *flagListCompartments {
 		listCompartmentNames(compartmentInfo)
