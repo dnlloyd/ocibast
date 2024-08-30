@@ -345,7 +345,7 @@ func printSshCommands(client bastion.BastionClient, sessionId *string, instanceI
 	sessionIdStr := *sessionId
 	bastionHost := sessionIdStr + "@host." + bastionEndpointUrl.Host
 
-	// TODO: Consider proxy jump flag for commands - https://www.ateam-oracle.com/post/openssh-proxyjump-with-oci-bastion-service
+	// TODO: Consider proxy jump flag for commands where applicable - https://www.ateam-oracle.com/post/openssh-proxyjump-with-oci-bastion-service
 	fmt.Println("\nTunnel:")
 	fmt.Println("sudo ssh -i \"" + sshIdentityFile + "\" \\")
 	fmt.Println("-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\")

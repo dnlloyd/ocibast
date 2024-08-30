@@ -1,3 +1,7 @@
+# This project has been migrated to https://github.com/dnlloyd/oshiv
+
+This project is now archived.
+
 # ocibast
 A tool for creating OCI bastion sessions and connecting to instances.
 
